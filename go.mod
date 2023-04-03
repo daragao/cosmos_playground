@@ -1,4 +1,4 @@
-module github.com/daragao/cosmos
+module github.com/daragao/cosmos_playground
 
 go 1.19
 
