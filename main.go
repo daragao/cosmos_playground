@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	errorsmod "cosmossdk.io/errors"
 
@@ -12,7 +13,6 @@ import (
 
 	"context"
 
-	"github.com/cosmos/gogoproto/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protowire"
 
@@ -69,35 +69,87 @@ func main() {
 			}
 			fmt.Printf("========\n%d\n%#v\n========\n", i, tx)
 		*/
+
 		unknownTxBytes(txB)
 		return
+	}
+}
+
+func writeBytes(filename string, b []byte) {
+	err := os.WriteFile(filename, b, 0644)
+	if err != nil {
+		panic(err)
 	}
 }
 
 func unknownTxBytes(txB []byte) {
 	for len(txB) > 0 {
 		fmt.Println("===========================")
-		tagNum, wireType, fieldLen := protowire.ConsumeField(txB)
-		fieldB := txB[:fieldLen]
-		txB = txB[fieldLen:]
-		fmt.Println("-->", tagNum, wireType, fieldLen)
-
-		tagNum, wireType, tagLen := protowire.ConsumeTag(fieldB)
-		tagB := fieldB[:tagLen]
-		fieldB = fieldB[tagLen:]
-		fmt.Println("-->", tagNum, wireType, tagLen, tagB)
-
-		i, o := protowire.ConsumeVarint(fieldB)
-		varint := fieldB[:o]
-		fieldB = fieldB[o:]
-		fmt.Println("-->", i, o, varint, string(varint))
-
-		any := new(codectypes.Any)
-		if err := proto.Unmarshal(fieldB, any); err != nil {
-			fmt.Println(err)
-			return
+		tagNum, wireType, tagLen := protowire.ConsumeTag(txB)
+		fmt.Print("tagNum: ", tagNum)
+		if wireType != 2 {
+			panic(fmt.Errorf("unexpected wireType (%d)", wireType))
 		}
-		fmt.Println("-->", any.TypeUrl)
+		txB := txB[tagLen:]
+
+		v, n := protowire.ConsumeVarint(txB)
+		txB = txB[n:]
+		fmt.Println("bytes length: ", v)
+
+		fieldValue, n := protowire.ConsumeBytes(txB[:v])
+
+		fmt.Println(v, n, string(fieldValue))
+		unknownTxBytes(txB[v:])
+
+		return
+		/*
+			any := new(codectypes.Any)
+			if err := proto.Unmarshal(fieldValue, any); err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Println(any)
+		*/
+
+		/*
+			tagNum, wireType, fieldLen := protowire.ConsumeField(txB)
+			if fieldLen < 0 {
+				return
+			}
+			fieldB := txB[:fieldLen]
+			txB = txB[fieldLen:]
+			fmt.Println("-->", tagNum, wireType, fieldLen)
+
+			tagNum, wireType, tagLen := protowire.ConsumeTag(fieldB)
+			tagB := fieldB[:tagLen]
+			fieldB = fieldB[tagLen:]
+			fmt.Println("-->", tagNum, wireType, tagLen, tagB)
+
+			switch wireType {
+			case 0:
+			case 1:
+				i, o := protowire.ConsumeVarint(fieldB)
+				varint := fieldB[:o]
+				fieldB = fieldB[o:]
+				fmt.Println("VARINT -->", i, o, varint)
+				break
+			case 2:
+				v, _ := protowire.ConsumeBytes(fieldB)
+				unknownTxBytes(v)
+				//fmt.Println("-->", string(v), bLen)
+			}
+		*/
+
+		/*
+			unknownTxBytes(fieldB)
+			any := new(codectypes.Any)
+			if err := proto.Unmarshal(fieldB, any); err != nil {
+				fmt.Println(err)
+				return
+			}
+		*/
+
+		//fmt.Println("-->", any.TypeUrl)
 		fmt.Println("===========================")
 		//fieldBytes = any.Value
 
