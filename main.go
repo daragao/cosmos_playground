@@ -12,12 +12,13 @@ import (
 
 	"context"
 
+	"github.com/cosmos/gogoproto/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protowire"
 
 	tendermint "cosmossdk.io/api/cosmos/base/tendermint/v1beta1"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	txType "github.com/cosmos/cosmos-sdk/types/tx"
-	authTx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 )
 
 func main() {
@@ -52,19 +53,57 @@ func main() {
 	blockTxs := blockData.GetTxs()
 	fmt.Printf("Block: %3.d Total txs: %d\n", block.GetHeader().GetHeight(), len(blockTxs))
 
-	registry := codectypes.NewInterfaceRegistry()
-	cdc := codec.NewProtoCodec(registry)
-	defaultDecodeTx := authTx.DefaultTxDecoder(cdc)
+	/*
+		registry := codectypes.NewInterfaceRegistry()
+		cdc := codec.NewProtoCodec(registry)
+		defaultDecodeTx := authTx.DefaultTxDecoder(cdc)
+	*/
 
-	for i, txB := range blockTxs {
-		//_, err := decodeTx(cdc, txB)
-		tx, err := defaultDecodeTx(txB)
-		if err != nil {
+	for _, txB := range blockTxs {
+		/*
+			//_, err := decodeTx(cdc, txB)
+			tx, err := defaultDecodeTx(txB)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			fmt.Printf("========\n%d\n%#v\n========\n", i, tx)
+		*/
+		unknownTxBytes(txB)
+		return
+	}
+}
+
+func unknownTxBytes(txB []byte) {
+	for len(txB) > 0 {
+		fmt.Println("===========================")
+		tagNum, wireType, fieldLen := protowire.ConsumeField(txB)
+		fieldB := txB[:fieldLen]
+		txB = txB[fieldLen:]
+		fmt.Println("-->", tagNum, wireType, fieldLen)
+
+		tagNum, wireType, tagLen := protowire.ConsumeTag(fieldB)
+		tagB := fieldB[:tagLen]
+		fieldB = fieldB[tagLen:]
+		fmt.Println("-->", tagNum, wireType, tagLen, tagB)
+
+		i, o := protowire.ConsumeVarint(fieldB)
+		varint := fieldB[:o]
+		fieldB = fieldB[o:]
+		fmt.Println("-->", i, o, varint, string(varint))
+
+		any := new(codectypes.Any)
+		if err := proto.Unmarshal(fieldB, any); err != nil {
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("========\n%d\n%#v\n========\n", i, tx)
-		return
+		fmt.Println("-->", any.TypeUrl)
+		fmt.Println("===========================")
+		//fieldBytes = any.Value
+
+		//n := protowire.ConsumeFieldValue(tagNum, wireType, txB[m:])
+		//fmt.Println("-->", n, string(txB[m:m+n]))
+		//fieldBytes := txB[m : m+n]
 	}
 }
 
