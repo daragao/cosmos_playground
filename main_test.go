@@ -21,6 +21,7 @@ func TestHello(t *testing.T) {
 			t.Fatal(err)
 		}
 		unknownTxBytes(b)
+		return // only one file
 	}
 
 }

@@ -4,21 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	errorsmod "cosmossdk.io/errors"
-
-	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/codec/unknownproto"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	"github.com/cosmos/cosmos-sdk/types/tx"
-
 	"context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protowire"
 
 	tendermint "cosmossdk.io/api/cosmos/base/tendermint/v1beta1"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	txType "github.com/cosmos/cosmos-sdk/types/tx"
+	//gammtypes "github.com/osmosis-labs/osmosis/x/gamm/types"
 )
 
 func main() {
@@ -83,25 +75,38 @@ func writeBytes(filename string, b []byte) {
 }
 
 func unknownTxBytes(txB []byte) {
+	fmt.Println("len(txB): ", len(txB))
 	for len(txB) > 0 {
-		fmt.Println("===========================")
-		tagNum, wireType, tagLen := protowire.ConsumeTag(txB)
-		fmt.Print("tagNum: ", tagNum)
-		if wireType != 2 {
-			panic(fmt.Errorf("unexpected wireType (%d)", wireType))
+		v, _ := protowire.ConsumeVarint(txB)
+		if v == 0 {
+			fmt.Println("END")
+			return
 		}
-		txB := txB[tagLen:]
 
-		v, n := protowire.ConsumeVarint(txB)
-		txB = txB[n:]
-		fmt.Println("bytes length: ", v)
+		fmt.Println("===========================")
 
-		fieldValue, n := protowire.ConsumeBytes(txB[:v])
+		tagNum, wireType, tagLen := protowire.ConsumeTag(txB)
 
-		fmt.Println(v, n, string(fieldValue))
-		unknownTxBytes(txB[v:])
+		tag := txB[:tagLen]
+		fmt.Println("tagNum: ", tagNum, " wireType: ", wireType, " tagLen: ", tagLen, "tag:", tag)
 
-		return
+		txB = txB[tagLen:]
+		fieldValueLen := protowire.ConsumeFieldValue(tagNum, wireType, txB)
+		fieldValue := txB[:fieldValueLen]
+		fmt.Println("fieldValueLen: ", fieldValueLen, "fieldValue: ", fieldValue)
+		txB = txB[fieldValueLen:]
+
+		if wireType == 2 {
+			v, o := protowire.ConsumeVarint(fieldValue)
+			fmt.Println("-->", v, o)
+			b, n := protowire.ConsumeBytes(fieldValue[6:]) // WHY 6!!!!???
+			fmt.Println("-->", n, string(b))
+			//unknownTxBytes(b)
+		} else {
+			fmt.Println("--> not implemented wiretype")
+		}
+
+		//return
 		/*
 			any := new(codectypes.Any)
 			if err := proto.Unmarshal(fieldValue, any); err != nil {
@@ -159,7 +164,15 @@ func unknownTxBytes(txB []byte) {
 	}
 }
 
+/*
 func decodeTx(cdc codec.ProtoCodecMarshaler, txBytes []byte) (*txType.TxRaw, error) {
+	cdc := codec.New()
+	sdk.RegisterCodec(cdc)
+	authTypes.RegisterCodec(cdc)
+	//gammtypes.RegisterCodec(cdc)
+	//nameTypes.RegisterCodec(cdc)
+	codec.RegisterCrypto(cdc)
+
 	var raw tx.TxRaw
 
 	// reject all unknown proto fields in the root TxRaw
@@ -181,3 +194,5 @@ func decodeTx(cdc codec.ProtoCodecMarshaler, txBytes []byte) (*txType.TxRaw, err
 	fmt.Printf("---\n%#v\n---", any)
 	return &raw, nil
 }
+
+*/
